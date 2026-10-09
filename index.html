@@ -1,3 +1,4 @@
+<!-- CHAVAN V4 single-file frontend. Replace API_BASE in the inline script with your deployed Cloudflare Worker URL before enabling live Razorpay payments. Never put Razorpay secret keys in this file. -->
 <!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -143,6 +144,19 @@ footer{padding:48px 0 130px;font-size:15px;line-height:1.75;color:#A9B2BE}.risk{
 .view{display:none;min-height:100dvh;place-items:center;padding:24px;text-align:center}
 .vc{max-width:460px}.vc h1{font-size:clamp(40px,10vw,56px);margin:0 0 16px}.vc p{margin:0 0 32px}
 @media(prefers-reduced-motion:reduce){.rv,.wd,.hero .fade{opacity:1;transform:none;animation:none;transition:none}.float{animation:none}html{scroll-behavior:auto}}
+
+/* secure checkout email modal */
+.email-modal{position:fixed;inset:0;z-index:50;display:none;place-items:center;padding:20px;background:rgba(0,0,0,.72);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.email-modal.on{display:grid}
+.email-card{width:min(460px,100%);background:#0E1215;border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:30px;box-shadow:0 28px 90px rgba(0,0,0,.6)}
+.email-card h2{font-size:38px;line-height:1.05;margin-bottom:10px}
+.email-card p{font-size:14px;line-height:1.6;margin-bottom:22px}
+.email-field{display:block;width:100%;height:54px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:#090B0D;color:#EDEFF2;padding:0 15px;font:400 15px Inter,system-ui,sans-serif}
+.email-field:focus{outline:2px solid var(--g);outline-offset:2px;border-color:transparent}
+.email-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.email-actions .ghost{display:inline-flex;align-items:center;justify-content:center;min-height:54px;border:1px solid rgba(255,255,255,.14);border-radius:999px;background:transparent;color:#EDEFF2;padding:0 20px;font:600 13px Inter,sans-serif;letter-spacing:.05em;text-transform:uppercase;cursor:pointer}
+.email-note{margin-top:12px!important;margin-bottom:0!important;font-size:12px!important;color:#8F99A5}
+@media(max-width:520px){.email-actions{grid-template-columns:1fr}.email-card{padding:24px}}
 </style></head><body>
 <canvas id="bg" aria-hidden="true"></canvas>
 
@@ -245,6 +259,21 @@ footer{padding:48px 0 130px;font-size:15px;line-height:1.75;color:#A9B2BE}.risk{
 
 <div class="view" id="success"><div class="vc"><h1>Payment <em>successful</em></h1><p>Your ebook is ready. Save this page's link: it stays valid for 7 days.</p><a class="btn" id="dl" href="#">Download Your Ebook</a></div></div>
 <div class="view" id="failed"><div class="vc"><h1>Payment wasn't <em>completed</em></h1><p>Your payment was not successfully completed. If money was debited, your bank usually refunds it automatically. Try again below.</p><button class="btn pay">Try Payment Again</button></div></div>
+
+<div class="email-modal" id="emailModal" role="dialog" aria-modal="true" aria-labelledby="emailTitle">
+  <form class="email-card" id="emailForm">
+    <h2 id="emailTitle">Get the <em>ebook.</em></h2>
+    <p>Enter your email before checkout. It will be attached to your order for delivery and support.</p>
+    <label for="customerEmail" class="eyebrow" style="margin-bottom:10px">Email address</label>
+    <input class="email-field" id="customerEmail" name="email" type="email" autocomplete="email" placeholder="you@example.com" required>
+    <div class="email-actions">
+      <button type="button" class="ghost" id="cancelEmail">Cancel</button>
+      <button type="submit" class="btn">Continue to payment</button>
+    </div>
+    <p class="email-note">Payment is handled by Razorpay. Your Razorpay secret is never exposed to this website.</p>
+  </form>
+</div>
+
 <div class="toast" id="toast" role="alert"></div>
 
 <script>
@@ -261,7 +290,7 @@ var previews=[{l:"01 — Market structure",src:""},{l:"02 — Liquidity",src:""}
 var testimonials=[];
 var faqs=[["Is this ebook suitable for beginners?","Yes. It starts from the foundation (market structure, support and resistance, pips and lot size) and builds up step by step."],["Do I need previous trading experience?","No. You don't need any previous trading experience to start."],["What markets can I apply these concepts to?","The concepts (structure, key levels, liquidity and risk) are explained so they can be applied across markets. The author has applied the same foundation to Indian stocks, crypto and forex. Markets behave differently, so always adapt your risk to the market you trade."],["How do I receive the ebook?","Right after payment you get a secure download button."],["Is this a digital or physical book?","It is a digital ebook. There is no physical copy."],["How many pages is the ebook?",""],["Will this ebook make me profitable?","No ebook can promise that. This ebook is educational and does not guarantee profits. Trading involves risk, and results depend on your execution, discipline, risk management and experience."],["Is this financial advice?","No. It is educational content only and is not investment advice or a recommendation to buy or sell anything."]];
 // Fill these in when ready; empty values are simply not shown.
-var site={email:"",terms:"",privacy:"",policy:"",pages:""};
+var site={email:"",terms:"",privacy:"",policy:"",pages:"165"};
 // ---------- RENDER ----------
 (function(){var ov={"How do I receive the ebook?":"Right after payment you get a secure download button. Save the link: it stays valid for 7 days.","How many pages is the ebook?":site.pages?site.pages+" pages.":""};
  faqs=faqs.map(function(f){return f[0] in ov?[f[0],ov[f[0]]]:f}).filter(function(f){return f[1]});
@@ -309,29 +338,80 @@ new IntersectionObserver(function(es){heroVis=es[0].isIntersecting;pastHero=!her
 new IntersectionObserver(function(es){inBuy=es.some(function(e){return e.isIntersecting});upd()}).observe($("pricing"));
 function route(){var h=location.hash,hm=$("home"),s=$("success"),f=$("failed");hm.style.display=s.style.display=f.style.display="none";
  var m=h.match(/^#\/success\?t=([a-f0-9]{64})$/);
- if(m){s.style.display="grid";$("dl").href="/api/download?t="+m[1]}else if(h==="#/failed"){f.style.display="grid"}else{hm.style.display="block"}
+ if(m){s.style.display="grid";$("dl").href=api("/download?t="+m[1])}else if(h==="#/failed"){f.style.display="grid"}else{hm.style.display="block"}
  scrollTo(0,0)}
 addEventListener("hashchange",route);route();
 
-// ---------- Razorpay (all sensitive work happens in /api) ----------
-var tt2;function showErr(t){var el=$("toast");el.textContent=t||"";el.classList.toggle("on",!!t);clearTimeout(tt2);if(t)tt2=setTimeout(function(){el.classList.remove("on")},7000)}
-function loadRzp(){return new Promise(function(ok){if(window.Razorpay)return ok(true);var s=document.createElement("script");s.src="https://checkout.razorpay.com/v1/checkout.js";s.onload=function(){ok(true)};s.onerror=function(){ok(false)};document.body.appendChild(s)})}
-async function pay(btn){
+// ---------- Razorpay ----------
+var API_BASE = "https://YOUR-WORKER.workers.dev"; // Set this to your deployed Worker URL before publishing.
+var activePayButton = null;
+var tt2;
+function showErr(t){
+ var el=$("toast");el.textContent=t||"";el.classList.toggle("on",!!t);clearTimeout(tt2);
+ if(t)tt2=setTimeout(function(){el.classList.remove("on")},7000)
+}
+function openEmailModal(btn){
+ activePayButton=btn;
+ $("emailModal").classList.add("on");
+ setTimeout(function(){$("customerEmail").focus()},50);
+}
+function closeEmailModal(){
+ $("emailModal").classList.remove("on");
+ activePayButton=null;
+}
+$("cancelEmail").addEventListener("click",closeEmailModal);
+$("emailModal").addEventListener("click",function(e){if(e.target===this)closeEmailModal()});
+document.addEventListener("keydown",function(e){if(e.key==="Escape" && $("emailModal").classList.contains("on"))closeEmailModal()});
+$("emailForm").addEventListener("submit",function(e){
+ e.preventDefault();
+ var email=$("customerEmail").value.trim().toLowerCase();
+ if(!email)return;
+ if(!/^\\S+@\\S+\\.\\S+$/.test(email)){showErr("Please enter a valid email address.");$("customerEmail").focus();return}
+ var btn=activePayButton;closeEmailModal();pay(btn,email);
+});
+function api(path){return API_BASE.replace(/\\/$/,"")+path}
+function loadRzp(){return new Promise(function(ok){
+ if(window.Razorpay)return ok(true);
+ var s=document.createElement("script");s.src="https://checkout.razorpay.com/v1/checkout.js";
+ s.onload=function(){ok(true)};s.onerror=function(){ok(false)};document.body.appendChild(s)
+})}
+async function pay(btn,email){
  var label=btn.textContent;btn.disabled=true;btn.textContent="Opening secure checkout…";showErr("");
  function done(){btn.disabled=false;btn.textContent=label}
  try{
+  if(API_BASE.indexOf("YOUR-WORKER")!==-1) throw new Error("Payment setup is not connected yet. Replace API_BASE with your Cloudflare Worker URL.");
   if(!(await loadRzp()))throw new Error("Could not load checkout. Check your connection.");
-  var r=await fetch("/api/create-order",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({productId:"ebook"})});
-  var o=await r.json();if(!r.ok)throw new Error(o.error||"Could not start payment");
-  var rz=new Razorpay({key:o.keyId,amount:o.amount,currency:o.currency,order_id:o.orderId,name:"Chavan V4",description:"Trading ebook",theme:{color:"#0ECB81"},
-   handler:async function(resp){
-    try{var v=await fetch("/api/verify-payment",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(resp)});
-     var d=await v.json();if(v.ok){location.hash="#/success?t="+d.token}else{showErr(d.error);done()}}
-    catch(e){showErr("Network error while confirming payment. Do not pay again; refresh and contact support with your payment ID.");done()}},
-   modal:{ondismiss:function(){done();location.hash="#/failed"}}});
-  rz.on("payment.failed",function(){location.hash="#/failed"});
+  var r=await fetch(api("/api/create-order"),{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({productId:"ebook",email:email})
+  });
+  var o=await r.json().catch(function(){return{}});
+  if(!r.ok)throw new Error(o.error||"Could not start payment");
+  var rz=new Razorpay({
+    key:o.keyId,amount:o.amount,currency:o.currency,order_id:o.orderId,
+    name:"Chavan V4",description:"Trading ebook",
+    prefill:{email:email},
+    theme:{color:"#0ECB81"},
+    handler:async function(resp){
+      try{
+        var v=await fetch(api("/api/verify-payment"),{
+          method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(resp)
+        });
+        var d=await v.json().catch(function(){return{}});
+        if(v.ok && d.token){location.hash="#/success?t="+d.token}
+        else{showErr(d.error||"We could not confirm the payment yet. Please contact support with your payment ID.");done()}
+      }catch(e){
+        showErr("Network error while confirming payment. Do not pay again; keep your payment ID and contact support.");done()
+      }
+    },
+    modal:{ondismiss:function(){done();location.hash="#/failed"}}
+  });
+  rz.on("payment.failed",function(){location.hash="#/failed";done()});
   rz.open();
  }catch(e){showErr(e.message||"Something went wrong");done()}
 }
-document.querySelectorAll(".pay").forEach(function(b){b.addEventListener("click",function(){pay(b)})});
+document.querySelectorAll(".pay").forEach(function(b){
+ b.addEventListener("click",function(e){e.preventDefault();openEmailModal(b)})
+});
 </script></body></html>
